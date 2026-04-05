@@ -75,6 +75,18 @@ enum PurchaseOption {
 model Shop {
   id        String   @id @default(cuid())
   shopDomain String  @unique
+  accessToken         String
+  installed               Boolean   @default(false)
+  status                  String?   @default("installed") @db.VarChar(32)
+  ownerName               String?   @db.VarChar(255)
+  email                   String?   @db.VarChar(320)
+  contactEmail            String?   @db.VarChar(320)
+  name                    String?   @db.VarChar(255)
+  country                 String?   @db.VarChar(100)
+  city                    String?   @db.VarChar(100)
+  currency                String?   @db.VarChar(10)
+  phone                   String?   @db.VarChar(50)
+  primaryDomain           String?   @db.VarChar(255)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

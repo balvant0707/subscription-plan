@@ -12,6 +12,19 @@ const DATABASE_URL_KEYS = [
   "DIRECT_URL",
 ];
 
+const connectionMode = String(process.env.PRISMA_DB_CONNECTION_MODE || "")
+  .trim()
+  .toLowerCase();
+const forceDirectMode = connectionMode === "direct";
+
+const DIRECT_KEYS = new Set(["DATABASE_URL", "POSTGRES_URL_NON_POOLING", "DIRECT_URL"]);
+const POOLER_KEYS = new Set([
+  "POSTGRES_PRISMA_URL",
+  "POSTGRES_URL",
+  "SUPABASE_DB_POOLER_URL",
+  "SUPABASE_POOLER_URL",
+]);
+
 const SUPABASE_POOLER_HOST_KEYS = [
   "SUPABASE_DB_POOLER_HOST",
   "SUPABASE_POOLER_HOST",
@@ -158,7 +171,9 @@ const finalizePostgresUrl = (value) => {
     return value;
   }
 
-  const normalizedValue = tryConvertSupabaseDirectToPooler(value);
+  const normalizedValue = forceDirectMode
+    ? value
+    : tryConvertSupabaseDirectToPooler(value);
 
   try {
     const parsed = new URL(normalizedValue);
@@ -186,6 +201,9 @@ const finalizePostgresUrl = (value) => {
 const scoreDatabaseUrlCandidate = (key, value) => {
   let score = 0;
   const lowerValue = value.toLowerCase();
+
+  if (connectionMode === "direct" && DIRECT_KEYS.has(key)) score += 200;
+  if (connectionMode === "pooler" && POOLER_KEYS.has(key)) score += 200;
 
   if (key === "POSTGRES_PRISMA_URL") score += 60;
   if (key === "POSTGRES_URL") score += 40;

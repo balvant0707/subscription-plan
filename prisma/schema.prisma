@@ -1,0 +1,212 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum BillingType {
+  PAY_AS_YOU_GO
+  PREPAID
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELED
+}
+
+enum PricingTier {
+  STARTER
+  GROWTH
+  PRO
+}
+
+enum ActivityType {
+  SUBSCRIPTION_CREATED
+  SUBSCRIPTION_UPDATED
+  SUBSCRIPTION_PAUSED
+  SUBSCRIPTION_CANCELED
+  SUBSCRIPTION_SKIPPED
+  PRODUCT_CONFIG_UPDATED
+  SETTINGS_UPDATED
+  PLAN_CHANGED
+  PORTAL_UPDATED
+}
+
+enum PurchaseOption {
+  BUY_ONCE
+  SUBSCRIBE
+}
+
+model Shop {
+  id        String   @id @default(cuid())
+  shopDomain String  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  settings             AppSetting?
+  pricingPlan          ShopPricingPlan?
+  widgetSetting        WidgetSetting?
+  subscriptionProducts SubscriptionProduct[]
+  subscriptions        Subscription[]
+  subscriptionOrders   SubscriptionOrder[]
+  activities           Activity[]
+}
+
+model SubscriptionProduct {
+  id              String       @id @default(cuid())
+  shopId          String
+  shopifyProductId String
+  productTitle    String
+  enabled         Boolean      @default(true)
+  discountType    DiscountType @default(PERCENTAGE)
+  discountValue   Float        @default(0)
+  frequencyOptions String
+  defaultFrequency String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  shop          Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  @@unique([shopId, shopifyProductId])
+  @@map("subscription_products")
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  shopId               String
+  subscriptionProductId String?
+  customerGid          String?
+  customerName         String
+  customerEmail        String?
+  productTitle         String
+  interval             String
+  basePrice            Float              @default(0)
+  discountValue        Float              @default(0)
+  billingType          BillingType        @default(PAY_AS_YOU_GO)
+  status               SubscriptionStatus @default(ACTIVE)
+  shippingAddressLine1 String?
+  shippingAddressLine2 String?
+  shippingCity         String?
+  shippingProvince     String?
+  shippingCountry      String?
+  shippingZip          String?
+  nextOrderDate        DateTime
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  shop                Shop                 @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  subscriptionProduct SubscriptionProduct? @relation(fields: [subscriptionProductId], references: [id], onDelete: SetNull)
+  orders              SubscriptionOrder[]
+
+  @@index([shopId, status])
+  @@index([shopId, customerGid])
+  @@map("subscriptions")
+}
+
+model SubscriptionOrder {
+  id            String   @id @default(cuid())
+  shopId        String
+  subscriptionId String?
+  shopifyOrderId String
+  orderAmount   Float    @default(0)
+  orderDate     DateTime @default(now())
+  status        String   @default("CREATED")
+  createdAt     DateTime @default(now())
+
+  shop         Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@unique([shopId, shopifyOrderId])
+  @@index([shopId, orderDate])
+  @@map("subscription_orders")
+}
+
+model AppSetting {
+  id                 String   @id @default(cuid())
+  shopId             String   @unique
+  retryPayment       Boolean  @default(true)
+  emailNotifications Boolean  @default(true)
+  cancellationOffer  String   @default("Offer 10% off before canceling.")
+  emailTemplate      String   @default("Hi {{customer_name}}, your subscription payment failed. Please update your payment method.")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+}
+
+model ShopPricingPlan {
+  id           String     @id @default(cuid())
+  shopId       String     @unique
+  plan         PricingTier @default(STARTER)
+  priceMonthly Float      @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+}
+
+model WidgetSetting {
+  id                    String         @id @default(cuid())
+  shopId                String         @unique
+  enabled               Boolean        @default(true)
+  buyOnceLabel          String         @default("Buy once")
+  subscribeLabel        String         @default("Subscribe & save")
+  defaultPurchaseOption PurchaseOption @default(BUY_ONCE)
+  defaultFrequency      String         @default("MONTHLY")
+  frequencyOptions      String         @default("WEEKLY,MONTHLY")
+  addToCartLabel        String         @default("Add to cart")
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+}
+
+model Activity {
+  id        String       @id @default(cuid())
+  shopId    String
+  type      ActivityType
+  message   String
+  metadata  String?
+  createdAt DateTime     @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, createdAt])
+  @@map("subscription_logs")
+}

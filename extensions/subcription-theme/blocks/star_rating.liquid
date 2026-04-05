@@ -1,0 +1,79 @@
+{{ 'subscription-widget.css' | asset_url | stylesheet_tag }}
+
+{% assign selected_product = block.settings.product | default: product %}
+{% assign selected_product_gql_id = selected_product.admin_graphql_api_id | default: selected_product.id %}
+
+<div
+  class="subscription-widget"
+  data-subscription-widget
+  data-product-id="{{ selected_product_gql_id | escape }}"
+  data-api-path="{{ block.settings.api_path | escape }}"
+>
+  <p class="subscription-widget__title">{{ block.settings.title }}</p>
+
+  <label class="subscription-widget__choice">
+    <input
+      type="radio"
+      name="subscription-purchase-option-{{ block.id }}"
+      value="BUY_ONCE"
+      checked
+      data-purchase-option
+    >
+    <span data-buy-once-label>Buy once</span>
+  </label>
+
+  <label class="subscription-widget__choice">
+    <input
+      type="radio"
+      name="subscription-purchase-option-{{ block.id }}"
+      value="SUBSCRIBE"
+      data-purchase-option
+    >
+    <span data-subscribe-label>Subscribe & save</span>
+  </label>
+
+  <div class="subscription-widget__frequency" data-frequency-wrapper hidden>
+    <label for="subscription-frequency-{{ block.id }}" class="subscription-widget__label">
+      Delivery frequency
+    </label>
+    <select id="subscription-frequency-{{ block.id }}" class="subscription-widget__select" data-frequency-select></select>
+  </div>
+
+  <p class="subscription-widget__discount" data-discount-label hidden></p>
+  <p class="subscription-widget__message" data-status-message hidden></p>
+
+  <button type="button" class="subscription-widget__button" data-add-to-cart-button>
+    Add to cart
+  </button>
+</div>
+
+<script src="{{ 'subscription-widget.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Subscription Widget",
+  "target": "section",
+  "templates": ["product"],
+  "settings": [
+    {
+      "type": "product",
+      "id": "product",
+      "label": "Product",
+      "autofill": true
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Widget heading",
+      "default": "Choose how you want to buy"
+    },
+    {
+      "type": "text",
+      "id": "api_path",
+      "label": "App proxy API path",
+      "default": "/apps/subscription-plan/extensions/theme-widget"
+    }
+  ]
+}
+{% endschema %}
+

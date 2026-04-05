@@ -1,0 +1,74 @@
+.subscription-widget {
+  border: 1px solid #d7d7d7;
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 12px;
+  background: #ffffff;
+  color: #111827;
+}
+
+.subscription-widget__title {
+  margin: 0 0 10px;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.subscription-widget__choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  cursor: pointer;
+}
+
+.subscription-widget__label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.subscription-widget__select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 14px;
+  background: #ffffff;
+}
+
+.subscription-widget__frequency {
+  margin-top: 10px;
+}
+
+.subscription-widget__discount {
+  margin: 10px 0 0;
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.subscription-widget__message {
+  margin: 10px 0 0;
+  color: #b91c1c;
+  font-size: 13px;
+}
+
+.subscription-widget__button {
+  margin-top: 12px;
+  width: 100%;
+  min-height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.subscription-widget__button[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+}

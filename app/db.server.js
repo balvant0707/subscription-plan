@@ -36,6 +36,16 @@ const SUPABASE_REGION_KEYS = [
   "SUPABASE_POOLER_REGION",
 ];
 
+const SUPABASE_PROJECT_REF_KEYS = [
+  "SUPABASE_PROJECT_REF",
+  "SUPABASE_REF",
+];
+
+const SUPABASE_URL_KEYS = [
+  "SUPABASE_URL",
+  "NEXT_PUBLIC_SUPABASE_URL",
+];
+
 const stripWrappingQuotes = (value) => {
   if (typeof value !== "string") return "";
 
@@ -93,6 +103,84 @@ const normalizeRawDatabaseValue = (value) => {
 const isPostgresUrl = (value) =>
   typeof value === "string" &&
   (value.startsWith("postgresql://") || value.startsWith("postgres://"));
+
+const extractSupabaseProjectRefFromHost = (host) => {
+  const normalizedHost = String(host || "").toLowerCase();
+  if (!normalizedHost) return "";
+
+  const directMatch = normalizedHost.match(/^db\.([a-z0-9]+)\.supabase\.co$/);
+  if (directMatch?.[1]) return directMatch[1];
+
+  const apiMatch = normalizedHost.match(/^([a-z0-9]+)\.supabase\.co$/);
+  if (apiMatch?.[1]) return apiMatch[1];
+
+  return "";
+};
+
+const inferSupabaseProjectRef = () => {
+  const explicitRef = SUPABASE_PROJECT_REF_KEYS.map((key) =>
+    stripWrappingQuotes(process.env[key]),
+  )
+    .find(Boolean)
+    ?.toLowerCase();
+  if (explicitRef) return explicitRef;
+
+  for (const key of SUPABASE_URL_KEYS) {
+    const raw = stripWrappingQuotes(process.env[key]);
+    if (!raw) continue;
+    try {
+      const ref = extractSupabaseProjectRefFromHost(new URL(raw).hostname);
+      if (ref) return ref;
+    } catch (error) {
+      const ref = extractSupabaseProjectRefFromHost(
+        raw.replace(/^https?:\/\//, "").split("/")[0],
+      );
+      if (ref) return ref;
+    }
+  }
+
+  for (const key of ["DATABASE_URL", "DIRECT_URL", "SUPABASE_DB_URL", "SUPABASE_DATABASE_URL"]) {
+    const raw = normalizeRawDatabaseValue(process.env[key]);
+    if (!isPostgresUrl(raw)) continue;
+    try {
+      const ref = extractSupabaseProjectRefFromHost(new URL(raw).hostname);
+      if (ref) return ref;
+    } catch (error) {
+      // Ignore parse errors and continue searching.
+    }
+  }
+
+  return "";
+};
+
+const normalizeSupabasePoolerUsername = (value) => {
+  if (!isPostgresUrl(value)) {
+    return value;
+  }
+
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.toLowerCase();
+    if (!host.endsWith(".pooler.supabase.com")) {
+      return value;
+    }
+
+    const currentUser = parsed.username || "postgres";
+    if (currentUser.includes(".")) {
+      return value;
+    }
+
+    const projectRef = inferSupabaseProjectRef();
+    if (!projectRef) {
+      return value;
+    }
+
+    parsed.username = `${currentUser}.${projectRef}`;
+    return parsed.toString();
+  } catch (error) {
+    return value;
+  }
+};
 
 const isLikelySupabaseDirectUrl = (value) => {
   if (!isPostgresUrl(value)) {
@@ -171,9 +259,10 @@ const finalizePostgresUrl = (value) => {
     return value;
   }
 
-  const normalizedValue = forceDirectMode
+  let normalizedValue = forceDirectMode
     ? value
     : tryConvertSupabaseDirectToPooler(value);
+  normalizedValue = normalizeSupabasePoolerUsername(normalizedValue);
 
   try {
     const parsed = new URL(normalizedValue);

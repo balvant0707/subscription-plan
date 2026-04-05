@@ -9,8 +9,8 @@ import {
   Text,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-import { PolarisVizProvider, SimpleBarChart } from "@shopify/polaris-viz";
 import prisma from "../db.server";
+import { ClientOnlySimpleBarChart } from "../components/ClientOnlyPolarisViz";
 import { buildMonthlyGrowthSeries } from "../lib/analytics.server";
 import {
   getShopContext,
@@ -128,12 +128,10 @@ export default function DashboardPage() {
                 <Text as="h2" variant="headingMd">
                   Growth Chart
                 </Text>
-                <PolarisVizProvider>
-                  <SimpleBarChart
-                    data={growthChartData}
-                    yAxisOptions={{ integersOnly: true }}
-                  />
-                </PolarisVizProvider>
+                <ClientOnlySimpleBarChart
+                  data={growthChartData}
+                  yAxisOptions={{ integersOnly: true }}
+                />
               </BlockStack>
             </Card>
           </Layout.Section>

@@ -10,12 +10,11 @@ import {
   Text,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-import {
-  LineChart,
-  PolarisVizProvider,
-  SimpleBarChart,
-} from "@shopify/polaris-viz";
 import prisma from "../db.server";
+import {
+  ClientOnlyLineChart,
+  ClientOnlySimpleBarChart,
+} from "../components/ClientOnlyPolarisViz";
 import { buildRangeAnalytics } from "../lib/analytics.server";
 import { DATE_RANGE_OPTIONS } from "../lib/subscription.constants";
 import { getShopContext } from "../lib/subscription.server";
@@ -152,14 +151,12 @@ export default function AnalyticsPage() {
                 <Text as="h2" variant="headingMd">
                   Revenue Chart
                 </Text>
-                <PolarisVizProvider>
-                  <LineChart
-                    data={revenueChartData}
-                    yAxisOptions={{
-                      labelFormatter: (value) => `$${Number(value).toLocaleString()}`,
-                    }}
-                  />
-                </PolarisVizProvider>
+                <ClientOnlyLineChart
+                  data={revenueChartData}
+                  yAxisOptions={{
+                    labelFormatter: (value) => `$${Number(value).toLocaleString()}`,
+                  }}
+                />
               </BlockStack>
             </Card>
           </Layout.Section>
@@ -170,12 +167,10 @@ export default function AnalyticsPage() {
                 <Text as="h2" variant="headingMd">
                   Subscriber Growth
                 </Text>
-                <PolarisVizProvider>
-                  <SimpleBarChart
-                    data={subscriberChartData}
-                    yAxisOptions={{ integersOnly: true }}
-                  />
-                </PolarisVizProvider>
+                <ClientOnlySimpleBarChart
+                  data={subscriberChartData}
+                  yAxisOptions={{ integersOnly: true }}
+                />
               </BlockStack>
             </Card>
           </Layout.Section>

@@ -1,10 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 
 const DATABASE_URL_KEYS = [
-  "DATABASE_URL",
   "POSTGRES_PRISMA_URL",
   "POSTGRES_URL",
+  "DATABASE_URL",
   "POSTGRES_URL_NON_POOLING",
+  "DIRECT_URL",
 ];
 
 const stripWrappingQuotes = (value) => {
@@ -65,6 +66,20 @@ const isPostgresUrl = (value) =>
   typeof value === "string" &&
   (value.startsWith("postgresql://") || value.startsWith("postgres://"));
 
+const scoreDatabaseUrlCandidate = (key, value) => {
+  let score = 0;
+  const lowerValue = value.toLowerCase();
+
+  if (key === "POSTGRES_PRISMA_URL") score += 60;
+  if (key === "POSTGRES_URL") score += 40;
+  if (key === "DATABASE_URL") score += 20;
+  if (key === "DIRECT_URL" || key === "POSTGRES_URL_NON_POOLING") score -= 10;
+  if (lowerValue.includes("pgbouncer=true")) score += 25;
+  if (lowerValue.includes("pooler.")) score += 20;
+
+  return score;
+};
+
 const buildDatabaseUrlFromParts = () => {
   const host = stripWrappingQuotes(process.env.POSTGRES_HOST || process.env.PGHOST);
   const user = stripWrappingQuotes(process.env.POSTGRES_USER || process.env.PGUSER);
@@ -85,10 +100,18 @@ const buildDatabaseUrlFromParts = () => {
   return `postgresql://${encodedUser}${encodedPassword}@${host}:${port}/${encodedDatabase}`;
 };
 
-const databaseUrl =
-  DATABASE_URL_KEYS.map((key) => normalizeRawDatabaseValue(process.env[key])).find(
-    (candidate) => isPostgresUrl(candidate),
-  ) || buildDatabaseUrlFromParts();
+const candidateUrls = DATABASE_URL_KEYS.map((key) => ({
+  key,
+  value: normalizeRawDatabaseValue(process.env[key]),
+}))
+  .filter((candidate) => isPostgresUrl(candidate.value))
+  .sort(
+    (a, b) =>
+      scoreDatabaseUrlCandidate(b.key, b.value) -
+      scoreDatabaseUrlCandidate(a.key, a.value),
+  );
+
+const databaseUrl = candidateUrls[0]?.value || buildDatabaseUrlFromParts();
 
 if (databaseUrl) {
   process.env.DATABASE_URL = databaseUrl;

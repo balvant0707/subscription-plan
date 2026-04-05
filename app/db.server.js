@@ -12,6 +12,17 @@ const DATABASE_URL_KEYS = [
   "DIRECT_URL",
 ];
 
+const SUPABASE_POOLER_HOST_KEYS = [
+  "SUPABASE_DB_POOLER_HOST",
+  "SUPABASE_POOLER_HOST",
+];
+
+const SUPABASE_REGION_KEYS = [
+  "SUPABASE_REGION",
+  "SUPABASE_DB_REGION",
+  "SUPABASE_POOLER_REGION",
+];
+
 const stripWrappingQuotes = (value) => {
   if (typeof value !== "string") return "";
 
@@ -70,13 +81,87 @@ const isPostgresUrl = (value) =>
   typeof value === "string" &&
   (value.startsWith("postgresql://") || value.startsWith("postgres://"));
 
-const finalizePostgresUrl = (value) => {
+const isLikelySupabaseDirectUrl = (value) => {
   if (!isPostgresUrl(value)) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.toLowerCase();
+    const isDirectHost = /^db\.[a-z0-9]+\.supabase\.co$/.test(host);
+    const port = parsed.port || "5432";
+
+    return isDirectHost && port === "5432";
+  } catch (error) {
+    return false;
+  }
+};
+
+const tryConvertSupabaseDirectToPooler = (value) => {
+  if (!isLikelySupabaseDirectUrl(value)) {
     return value;
   }
 
   try {
     const parsed = new URL(value);
+    const match = parsed.hostname.toLowerCase().match(/^db\.([a-z0-9]+)\.supabase\.co$/);
+    const projectRef = match?.[1];
+    if (!projectRef) {
+      return value;
+    }
+
+    let poolerHost = SUPABASE_POOLER_HOST_KEYS.map((key) =>
+      stripWrappingQuotes(process.env[key]),
+    ).find(Boolean);
+
+    if (!poolerHost) {
+      const region = SUPABASE_REGION_KEYS.map((key) =>
+        stripWrappingQuotes(process.env[key]),
+      ).find(Boolean);
+
+      if (region) {
+        poolerHost = `aws-0-${region}.pooler.supabase.com`;
+      }
+    }
+
+    if (!poolerHost) {
+      return value;
+    }
+
+    const poolerPort =
+      stripWrappingQuotes(process.env.SUPABASE_POOLER_PORT) || "6543";
+
+    const currentUser = parsed.username || "postgres";
+    const poolerUser = currentUser.includes(".")
+      ? currentUser
+      : `${currentUser}.${projectRef}`;
+
+    parsed.hostname = poolerHost;
+    parsed.port = poolerPort;
+    parsed.username = poolerUser;
+    if (!parsed.searchParams.has("pgbouncer")) {
+      parsed.searchParams.set("pgbouncer", "true");
+    }
+    if (!parsed.searchParams.has("sslmode")) {
+      parsed.searchParams.set("sslmode", "require");
+    }
+
+    return parsed.toString();
+  } catch (error) {
+    return value;
+  }
+};
+
+const finalizePostgresUrl = (value) => {
+  if (!isPostgresUrl(value)) {
+    return value;
+  }
+
+  const normalizedValue = tryConvertSupabaseDirectToPooler(value);
+
+  try {
+    const parsed = new URL(normalizedValue);
     const host = parsed.hostname.toLowerCase();
     const isSupabaseHost =
       host.endsWith(".supabase.co") || host.endsWith(".pooler.supabase.com");
@@ -94,7 +179,7 @@ const finalizePostgresUrl = (value) => {
 
     return parsed.toString();
   } catch (error) {
-    return value;
+    return normalizedValue;
   }
 };
 
@@ -154,6 +239,12 @@ const databaseUrl = finalizePostgresUrl(
 
 if (databaseUrl) {
   process.env.DATABASE_URL = databaseUrl;
+
+  if (process.env.NODE_ENV === "production" && isLikelySupabaseDirectUrl(databaseUrl)) {
+    console.warn(
+      "Using direct Supabase URL (db.<project-ref>.supabase.co:5432). If you see connectivity errors in serverless, set POSTGRES_PRISMA_URL to the Supabase pooler URL.",
+    );
+  }
 } else {
   const detectedSchemes = DATABASE_URL_KEYS.map((key) =>
     normalizeRawDatabaseValue(process.env[key]),

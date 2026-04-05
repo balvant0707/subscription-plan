@@ -3,6 +3,10 @@ import { PrismaClient } from "@prisma/client";
 const DATABASE_URL_KEYS = [
   "POSTGRES_PRISMA_URL",
   "POSTGRES_URL",
+  "SUPABASE_DB_POOLER_URL",
+  "SUPABASE_POOLER_URL",
+  "SUPABASE_DB_URL",
+  "SUPABASE_DATABASE_URL",
   "DATABASE_URL",
   "POSTGRES_URL_NON_POOLING",
   "DIRECT_URL",
@@ -66,16 +70,47 @@ const isPostgresUrl = (value) =>
   typeof value === "string" &&
   (value.startsWith("postgresql://") || value.startsWith("postgres://"));
 
+const finalizePostgresUrl = (value) => {
+  if (!isPostgresUrl(value)) {
+    return value;
+  }
+
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.toLowerCase();
+    const isSupabaseHost =
+      host.endsWith(".supabase.co") || host.endsWith(".pooler.supabase.com");
+
+    if (isSupabaseHost && !parsed.searchParams.has("sslmode")) {
+      parsed.searchParams.set("sslmode", "require");
+    }
+
+    if (
+      host.endsWith(".pooler.supabase.com") &&
+      !parsed.searchParams.has("pgbouncer")
+    ) {
+      parsed.searchParams.set("pgbouncer", "true");
+    }
+
+    return parsed.toString();
+  } catch (error) {
+    return value;
+  }
+};
+
 const scoreDatabaseUrlCandidate = (key, value) => {
   let score = 0;
   const lowerValue = value.toLowerCase();
 
   if (key === "POSTGRES_PRISMA_URL") score += 60;
   if (key === "POSTGRES_URL") score += 40;
+  if (key === "SUPABASE_DB_POOLER_URL" || key === "SUPABASE_POOLER_URL") score += 40;
+  if (key === "SUPABASE_DB_URL" || key === "SUPABASE_DATABASE_URL") score += 30;
   if (key === "DATABASE_URL") score += 20;
   if (key === "DIRECT_URL" || key === "POSTGRES_URL_NON_POOLING") score -= 10;
   if (lowerValue.includes("pgbouncer=true")) score += 25;
   if (lowerValue.includes("pooler.")) score += 20;
+  if (lowerValue.includes("sslmode=require")) score += 10;
 
   return score;
 };
@@ -97,12 +132,14 @@ const buildDatabaseUrlFromParts = () => {
   const encodedPassword = password ? `:${encodeURIComponent(password)}` : "";
   const encodedDatabase = encodeURIComponent(database);
 
-  return `postgresql://${encodedUser}${encodedPassword}@${host}:${port}/${encodedDatabase}`;
+  return finalizePostgresUrl(
+    `postgresql://${encodedUser}${encodedPassword}@${host}:${port}/${encodedDatabase}`,
+  );
 };
 
 const candidateUrls = DATABASE_URL_KEYS.map((key) => ({
   key,
-  value: normalizeRawDatabaseValue(process.env[key]),
+  value: finalizePostgresUrl(normalizeRawDatabaseValue(process.env[key])),
 }))
   .filter((candidate) => isPostgresUrl(candidate.value))
   .sort(
@@ -111,7 +148,9 @@ const candidateUrls = DATABASE_URL_KEYS.map((key) => ({
       scoreDatabaseUrlCandidate(a.key, a.value),
   );
 
-const databaseUrl = candidateUrls[0]?.value || buildDatabaseUrlFromParts();
+const databaseUrl = finalizePostgresUrl(
+  candidateUrls[0]?.value || buildDatabaseUrlFromParts(),
+);
 
 if (databaseUrl) {
   process.env.DATABASE_URL = databaseUrl;

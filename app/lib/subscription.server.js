@@ -1,13 +1,14 @@
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
+import { upsertInstalledShop } from "./shop.server";
 
 export async function getShopContext(request) {
   const { admin, session } = await authenticate.admin(request);
 
-  const shop = await prisma.shop.upsert({
-    where: { shopDomain: session.shop },
-    update: {},
-    create: { shopDomain: session.shop },
+  const shop = await upsertInstalledShop({
+    shopDomain: session.shop,
+    accessToken: session.accessToken,
+    admin,
   });
 
   return { admin, session, shop };

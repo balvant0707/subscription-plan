@@ -2,6 +2,7 @@ import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { normalizeFrequencies } from "../lib/subscription.utils";
 import { authenticate } from "../shopify.server";
+import { ensureShopRecord } from "../lib/shop.server";
 
 const DEFAULT_WIDGET = {
   enabled: true,
@@ -26,11 +27,10 @@ export const loader = async ({ request }) => {
     String(url.searchParams.get("productId") || "").trim(),
   );
 
-  const shop = await prisma.shop.upsert({
-    where: { shopDomain },
-    update: {},
-    create: { shopDomain },
-  });
+  const shop = await ensureShopRecord(shopDomain);
+  if (!shop) {
+    return json({ widget: DEFAULT_WIDGET, productConfig: null });
+  }
 
   const [widget, productConfig] = await Promise.all([
     prisma.widgetSetting.findUnique({

@@ -1,16 +1,16 @@
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { ensureShopRecord } from "../lib/shop.server";
 
 export const action = async ({ request }) => {
   const { payload, shop, topic } = await authenticate.webhook(request);
 
   console.log(`Received ${topic} webhook for ${shop}`);
 
-  const shopRecord = await db.shop.upsert({
-    where: { shopDomain: shop },
-    update: {},
-    create: { shopDomain: shop },
-  });
+  const shopRecord = await ensureShopRecord(shop);
+  if (!shopRecord) {
+    return new Response();
+  }
 
   const orderId = String(payload?.id ?? "");
   const orderAmount = Number.parseFloat(String(payload?.current_total_price ?? "0"));
@@ -73,4 +73,3 @@ export const action = async ({ request }) => {
 
   return new Response();
 };
-

@@ -1,5 +1,6 @@
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { ensureShopRecord } from "../lib/shop.server";
 
 function mapWebhookStatus(rawStatus) {
   const status = String(rawStatus || "").toUpperCase();
@@ -24,11 +25,10 @@ export const action = async ({ request }) => {
 
   console.log(`Received ${topic} webhook for ${shop}`);
 
-  const shopRecord = await db.shop.upsert({
-    where: { shopDomain: shop },
-    update: {},
-    create: { shopDomain: shop },
-  });
+  const shopRecord = await ensureShopRecord(shop);
+  if (!shopRecord) {
+    return new Response();
+  }
 
   const externalSubscriptionId = String(
     payload?.admin_graphql_api_id || payload?.id || "",
@@ -66,4 +66,3 @@ export const action = async ({ request }) => {
 
   return new Response();
 };
-
